@@ -1,0 +1,9 @@
+[package]
+name = "rumpus_cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rumpus = { git = "https://github.com/benjaminpotter/rumpus.git" }
+clap = "4.5.0"
+image = "0.25.0"
