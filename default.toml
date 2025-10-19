@@ -1,0 +1,10 @@
+pixel_size_um = 6.9
+focal_length_mm = 8.0
+image_rows = 1024
+image_cols = 1224
+yaw_deg = 0.0
+pitch_deg = 0.0
+roll_deg = 0.0
+lat_deg = 44.2187
+lon_deg = -76.4747
+time = "2025-06-13T16:26:47+00:00"

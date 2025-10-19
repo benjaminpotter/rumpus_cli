@@ -4,6 +4,17 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-rumpus = { git = "https://github.com/benjaminpotter/rumpus.git" }
-clap = "4.5.0"
+rumpus = { git = "https://github.com/benjaminpotter/rumpus.git", tag="0.3.0" }
+clap = { version = "4.5.0", features = ["derive"] }
 image = "0.25.0"
+anyhow = "1.0.100"
+chrono = "0.4.42"
+serde = { version = "1.0.228", features = ["derive"] }
+uom = "0.37.0"
+sguaba = "0.9.7"
+rayon = "1.11.0"
+toml = "0.9.8"
+
+[[bin]]
+name = "rumpus"
+path = "src/main.rs"
