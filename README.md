@@ -1,7 +1,7 @@
 # Rumpus CLI
 
 A command-line interface for various skylight polarization utilities.
-This crate provides an example implementation of the (rumpus)[https://github.com/benjaminpotter/rumpus] library.
+This crate provides an example implementation of the [rumpus](https://github.com/benjaminpotter/rumpus) library.
 
 ## Installation
 
