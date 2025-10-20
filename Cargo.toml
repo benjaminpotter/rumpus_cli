@@ -1,6 +1,16 @@
 [package]
 name = "rumpus_cli"
 version = "0.1.0"
+authors = ["Ben Potter <bp@benpot.com>"]
+license = "GPLv3"
+description = "A tool to search files"
+readme = "README.md"
+homepage = "https://github.com/benjaminpotter/rumpus_cli"
+repository = "https://github.com/benjaminpotter/rumpus_cli"
+keywords = ["cli", "rumpus", "academic"]
+categories = ["command-line-utilities"]
+# Prevent cargo from making a `rumpus_cli` binary.
+autobins = false
 edition = "2024"
 
 [dependencies]

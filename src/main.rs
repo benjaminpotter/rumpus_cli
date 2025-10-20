@@ -3,7 +3,6 @@ use anyhow::bail;
 use clap::Parser;
 use rumpus_cli::cli::Cli;
 use rumpus_cli::cli::Commands;
-use std::path::PathBuf;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
