@@ -5,10 +5,10 @@ This crate provides an example implementation of the [rumpus](https://github.com
 
 ## Installation
 
-### From crates.io
+### From repository
 
 ```bash
-cargo install rumpus_cli
+cargo install --git https://github.com/benjaminpotter/rumpus_cli
 ```
 
 ### From source
