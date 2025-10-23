@@ -10,9 +10,10 @@ fn main() -> Result<()> {
     match &cli.command() {
         Commands::Simulate {
             params,
+            target,
             output,
             format,
-        } => rumpus_cli::simulate::run(params, output, format),
+        } => rumpus_cli::simulate::run(params, target, output, format),
         _ => bail!("this command has not been implemented!"),
     }
 }

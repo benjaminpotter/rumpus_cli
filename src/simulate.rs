@@ -1,4 +1,5 @@
 use crate::cli::SimulationFormat;
+use crate::cli::SimulationTarget;
 use anyhow::Context;
 use anyhow::Result;
 use chrono::prelude::*;
@@ -93,6 +94,7 @@ impl Params {
 
 pub fn run(
     params: &Option<PathBuf>,
+    target: &SimulationTarget,
     output: &PathBuf,
     format: &Option<SimulationFormat>,
 ) -> Result<()> {
@@ -115,12 +117,20 @@ pub fn run(
         }
     }) {
         Some(format) => match format {
-            SimulationFormat::Png => {
-                write_image(ray_image, params.image_rows(), params.image_cols(), output)
-            }
-            SimulationFormat::Dat => {
-                write_dat(ray_image, params.image_rows(), params.image_cols(), output)
-            }
+            SimulationFormat::Png => write_image(
+                ray_image,
+                params.image_rows(),
+                params.image_cols(),
+                target,
+                output,
+            ),
+            SimulationFormat::Dat => write_dat(
+                ray_image,
+                params.image_rows(),
+                params.image_cols(),
+                target,
+                output,
+            ),
         },
         None => anyhow::bail!("unsupported output format"),
     }
@@ -150,8 +160,9 @@ fn simulate(params: &Params) -> Result<RayImage<GlobalFrame>> {
                 .trace_from_sensor(*coord)
                 .expect("coord on sensor plane");
             let aop = sky_model.aop(bearing_cam_enu)?;
+            let dop = sky_model.dop(bearing_cam_enu)?;
 
-            Some(Ray::new(*coord, aop, Dop::new(0.0)))
+            Some(Ray::new(*coord, aop, dop))
         })
         .collect();
 
@@ -170,23 +181,35 @@ fn write_image(
     ray_image: RayImage<GlobalFrame>,
     image_rows: u16,
     image_cols: u16,
+    target: &SimulationTarget,
     path: &PathBuf,
 ) -> Result<()> {
-    // Map the AoP values in the RayImage to RGB colours.
+    // Map the values in the RayImage to RGB colours.
     // Draw missing pixels as white.
-    let aop_image: Vec<u8> = ray_image
-        .ray_pixels()
-        .flat_map(|pixel| match pixel {
-            Some(ray) => to_rgb(ray.aop().angle().get::<degree>(), -90.0, 90.0)
-                .expect("aop in between -90 and 90"),
-            None => [255, 255, 255],
-        })
-        .collect();
+    let image: Vec<u8> = match target {
+        SimulationTarget::Aop => ray_image
+            .ray_pixels()
+            .flat_map(|pixel| match pixel {
+                Some(ray) => to_rgb(ray.aop().angle().get::<degree>(), -90.0, 90.0)
+                    .expect("aop in between -90 and 90"),
+                None => [255, 255, 255],
+            })
+            .collect(),
+        SimulationTarget::Dop => ray_image
+            .ray_pixels()
+            .flat_map(|pixel| match pixel {
+                Some(ray) => {
+                    to_rgb(ray.dop().into_inner(), 0.0, 1.0).expect("dop in between 0 and 1")
+                }
+                None => [255, 255, 255],
+            })
+            .collect(),
+    };
 
     // Save the buffer of RGB pixels as a PNG.
     image::save_buffer(
         &path,
-        &aop_image,
+        &image,
         image_cols.into(),
         image_rows.into(),
         image::ExtendedColorType::Rgb8,
@@ -195,23 +218,36 @@ fn write_image(
     Ok(())
 }
 
-fn write_dat(ray_image: RayImage<GlobalFrame>, rows: u16, cols: u16, path: &PathBuf) -> Result<()> {
-    // Map the AoP values in the RayImage to RGB colours.
-    // Draw missing pixels as white.
-    let aop_image: Vec<f64> = ray_image
-        .ray_pixels()
-        .map(|pixel| match pixel {
-            Some(ray) => ray.aop().angle().get::<degree>(),
-            None => f64::NAN,
-        })
-        .collect();
+fn write_dat(
+    ray_image: RayImage<GlobalFrame>,
+    rows: u16,
+    cols: u16,
+    target: &SimulationTarget,
+    path: &PathBuf,
+) -> Result<()> {
+    let image: Vec<f64> = match target {
+        SimulationTarget::Aop => ray_image
+            .ray_pixels()
+            .map(|pixel| match pixel {
+                Some(ray) => ray.aop().angle().get::<degree>(),
+                None => f64::NAN,
+            })
+            .collect(),
+        SimulationTarget::Dop => ray_image
+            .ray_pixels()
+            .map(|pixel| match pixel {
+                Some(ray) => ray.dop().into_inner(),
+                None => f64::NAN,
+            })
+            .collect(),
+    };
 
     // Write simulated output to file.
     let mut output_file = BufWriter::new(File::create(&path)?);
     for row in 0..rows {
         for col in 0..cols {
             let i: usize = (row * cols + col).try_into()?;
-            write!(output_file, "{:5} ", aop_image[i])?;
+            write!(output_file, "{:5} ", image[i])?;
         }
         write!(output_file, "\n")?;
     }

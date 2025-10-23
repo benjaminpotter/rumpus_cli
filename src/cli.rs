@@ -20,6 +20,10 @@ pub enum Commands {
         #[arg(short, long)]
         params: Option<PathBuf>,
 
+        /// Simulation target.
+        #[arg(short, long, value_enum)]
+        target: SimulationTarget,
+
         /// File path for the simulated output.
         #[arg(short, long)]
         output: PathBuf,
@@ -37,6 +41,13 @@ pub enum Commands {
 pub enum SimulationFormat {
     Png,
     Dat,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[non_exhaustive]
+pub enum SimulationTarget {
+    Aop,
+    Dop,
 }
 
 impl Cli {
