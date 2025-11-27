@@ -9,7 +9,7 @@ pub struct Cli {
     command: Commands,
 }
 
-#[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Subcommand, Clone, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum Commands {
     /// Generate a simulation of the skylight polarization pattern.
@@ -34,6 +34,27 @@ pub enum Commands {
         #[arg(short, long, value_enum)]
         format: Option<SimulationFormat>,
     },
+
+    /// Parse an intensity image into target polarization data.
+    Parse {
+        #[arg(short, long)]
+        image: PathBuf,
+
+        #[arg(short, long, default_value = "out.png")]
+        output_path: PathBuf,
+
+        #[arg(short, long, default_value_t = 6.9)]
+        pixel_size_um: f64,
+
+        #[arg(short, long, default_value_t = 0.0)]
+        min_dop: f64,
+
+        #[arg(short, long, value_enum)]
+        target: ParseTarget,
+
+        #[arg(short, long, value_enum)]
+        format: ParseFormat,
+    },
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -46,6 +67,19 @@ pub enum SimulationFormat {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[non_exhaustive]
 pub enum SimulationTarget {
+    Aop,
+    Dop,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[non_exhaustive]
+pub enum ParseFormat {
+    Png,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[non_exhaustive]
+pub enum ParseTarget {
     Aop,
     Dop,
 }
