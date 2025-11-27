@@ -1,9 +1,9 @@
 [package]
 name = "rumpus_cli"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Ben Potter <bp@benpot.com>"]
 license = "GPLv3"
-description = "A tool to search files"
+description = "A command-line tool for interacting with skylight polarization"
 readme = "README.md"
 homepage = "https://github.com/benjaminpotter/rumpus_cli"
 repository = "https://github.com/benjaminpotter/rumpus_cli"
