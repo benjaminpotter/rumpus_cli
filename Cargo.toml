@@ -7,7 +7,7 @@ description = "A command-line tool for interacting with skylight polarization"
 readme = "README.md"
 homepage = "https://github.com/benjaminpotter/rumpus_cli"
 repository = "https://github.com/benjaminpotter/rumpus_cli"
-keywords = ["cli", "rumpus", "academic"]
+keywords = ["cli", "rumpus", "academic", "soss", "oss"]
 categories = ["command-line-utilities"]
 # Prevent cargo from making a `rumpus_cli` binary.
 autobins = false

@@ -99,7 +99,7 @@ pub fn run(
     format: &Option<SimulationFormat>,
 ) -> Result<()> {
     let params = match params {
-        Some(path) => parse_params(&path)?,
+        Some(path) => parse_params(path)?,
         None => Params::default(),
     };
 
@@ -152,7 +152,7 @@ fn simulate(params: &Params) -> Result<RayImage<GlobalFrame>> {
     let sky_model = SkyModel::from_wgs84_and_time(params.wgs84()?, params.time());
     let cam_orientation = params.orientation();
 
-    let camera = Camera::new(lens.clone(), cam_orientation);
+    let camera = Camera::new(lens, cam_orientation);
     let rays: Vec<Ray<_>> = coords
         .par_iter()
         .filter_map(|coord| {
@@ -208,7 +208,7 @@ fn write_image(
 
     // Save the buffer of RGB pixels as a PNG.
     image::save_buffer(
-        &path,
+        path,
         &image,
         image_cols.into(),
         image_rows.into(),

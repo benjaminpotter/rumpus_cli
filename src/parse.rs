@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use uom::ConstZero;
 use uom::si::{angle::degree, f64::Length, length::micron};
 
+#[allow(clippy::similar_names)]
 pub fn run(
     image: &PathBuf,
     output_path: &PathBuf,
@@ -34,7 +35,7 @@ pub fn run(
     let rays = intensity_image
         .rays(pixel_size, pixel_size)
         .ray_filter(DopFilter::new(*min_dop))
-        .filter_map(|ray| ray.into_global_frame(zenith_coord.clone()));
+        .filter_map(|ray| ray.into_global_frame(zenith_coord));
 
     // Convert the sparse RayIterator into a dense RayImage using the specs of
     // the image sensor as a RaySensor.
@@ -70,12 +71,11 @@ pub fn run(
                         None => [255, 255, 255],
                     })
                     .collect(),
-                _ => anyhow::bail!("parse target not implemented!"),
             };
 
             // Save the buffer of RGB pixels as an image
             image::save_buffer(
-                &output_path,
+                output_path,
                 &image,
                 intensity_image.width().into(),
                 intensity_image.height().into(),
@@ -83,7 +83,6 @@ pub fn run(
             )
             .expect("valid image and path");
         }
-        _ => anyhow::bail!("parse target format not implemented!"),
     }
 
     Ok(())

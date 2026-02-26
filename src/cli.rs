@@ -14,9 +14,9 @@ pub struct Cli {
 pub enum Commands {
     /// Generate a simulation of the skylight polarization pattern.
     Simulate {
-        /// Optional path to TOML formatted SensorParams.
+        /// Optional path to TOML formatted [`SensorParams`].
         ///
-        /// If not provided, the default SensorParams is used.
+        /// If not provided, the default [`SensorParams`] is used.
         #[arg(short, long)]
         params: Option<PathBuf>,
 
@@ -85,6 +85,7 @@ pub enum ParseTarget {
 }
 
 impl Cli {
+    #[must_use]
     pub fn command(&self) -> Commands {
         self.command.clone()
     }
