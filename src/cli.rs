@@ -6,11 +6,10 @@ use std::path::PathBuf;
 #[derive(Parser)]
 pub struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    pub command: Commands,
 }
 
 #[derive(Subcommand, Clone, PartialEq, PartialOrd)]
-#[non_exhaustive]
 pub enum Commands {
     /// Generate a simulation of the skylight polarization pattern.
     Simulate {
@@ -22,7 +21,7 @@ pub enum Commands {
 
         /// Simulation target.
         #[arg(short, long, value_enum)]
-        target: SimulationTarget,
+        target: Target,
 
         /// File path for the simulated output.
         #[arg(short, long)]
@@ -32,61 +31,39 @@ pub enum Commands {
         ///
         /// If not provided, the output format is inferred from the file extension.
         #[arg(short, long, value_enum)]
-        format: Option<SimulationFormat>,
+        format: Option<Format>,
     },
 
     /// Parse an intensity image into target polarization data.
     Parse {
-        #[arg(short, long)]
-        image: PathBuf,
+        file: PathBuf,
 
         #[arg(short, long, default_value = "out.png")]
-        output_path: PathBuf,
-
-        #[arg(short, long, default_value_t = 6.9)]
-        pixel_size_um: f64,
+        output: PathBuf,
 
         #[arg(short, long, default_value_t = 0.0)]
         min_dop: f64,
 
         #[arg(short, long, value_enum)]
-        target: ParseTarget,
+        target: Target,
 
         #[arg(short, long, value_enum)]
-        format: ParseFormat,
+        format: Option<Format>,
     },
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[non_exhaustive]
-pub enum SimulationFormat {
+pub enum Target {
+    AopSensor,
+    AopGlobal,
+    Dop,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[non_exhaustive]
+pub enum Format {
     Png,
     Dat,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-#[non_exhaustive]
-pub enum SimulationTarget {
-    Aop,
-    Dop,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-#[non_exhaustive]
-pub enum ParseFormat {
-    Png,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-#[non_exhaustive]
-pub enum ParseTarget {
-    Aop,
-    Dop,
-}
-
-impl Cli {
-    #[must_use]
-    pub fn command(&self) -> Commands {
-        self.command.clone()
-    }
+    Bin,
 }

@@ -1,19 +1,22 @@
-use crate::cli::SimulationFormat;
-use crate::cli::SimulationTarget;
+use crate::cli::Format;
+use crate::cli::Target;
 use anyhow::Context;
 use anyhow::Result;
 use chrono::prelude::*;
-use rayon::prelude::*;
-use rumpus::prelude::*;
+use rumpus::image::RayImage;
+use rumpus::optic::Camera;
+use rumpus::optic::PinholeOptic;
+use rumpus::ray::GlobalFrame;
+use rumpus::simulation::Simulation;
 use sguaba::Coordinate;
 use sguaba::engineering::Orientation;
+use sguaba::engineering::Pose;
+use sguaba::math::RigidBodyTransform;
+use sguaba::system;
 use sguaba::systems::Wgs84;
-use std::{
-    ffi::OsStr,
-    fs::File,
-    io::{BufWriter, Read, Write},
-    path::PathBuf,
-};
+use std::io::Read;
+use std::path::Path;
+use std::path::PathBuf;
 use uom::si::f64::Angle;
 use uom::si::f64::Length;
 use uom::si::{
@@ -21,12 +24,60 @@ use uom::si::{
     length::{meter, micron, millimeter},
 };
 
+pub fn run(
+    params: Option<PathBuf>,
+    target: Target,
+    output: PathBuf,
+    format: Option<Format>,
+) -> Result<()> {
+    let params = match params {
+        Some(path) => Params::try_from_toml(path)?,
+        None => Params::default(),
+    };
+
+    let ray_image = simulate(&params)?;
+
+    let format = format
+        .map(Ok)
+        .unwrap_or_else(|| crate::common::parse_format(&output))?;
+
+    crate::common::write_ray_image(ray_image, target, format, &output)?;
+
+    Ok(())
+}
+
+system!(struct CameraBody using right-handed XYZ);
+system!(struct CameraEnu using ENU);
+
+fn simulate(params: &Params) -> Result<RayImage<GlobalFrame>> {
+    // SAFETY: CameraBody and CameraEnu have coincident origins.
+    let camera_enu_to_ecef =
+        unsafe { RigidBodyTransform::ecef_to_enu_at(&params.wgs84()?) }.inverse();
+
+    let camera_pose_enu = Pose::new(Coordinate::origin(), params.orientation());
+    let camera_pose_ecef = camera_enu_to_ecef.transform(camera_pose_enu);
+
+    let ray_image = Simulation::new(
+        Camera::new(
+            PinholeOptic::from_focal_length(params.focal_length()),
+            params.pixel_size(),
+            params.image_rows(),
+            params.image_cols(),
+        ),
+        camera_pose_ecef,
+        params.time(),
+    )
+    .par_ray_image();
+
+    Ok(ray_image)
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Params {
     pixel_size_um: f64,
     focal_length_mm: f64,
-    image_rows: u16,
-    image_cols: u16,
+    image_rows: usize,
+    image_cols: usize,
     yaw_deg: f64,
     pitch_deg: f64,
     roll_deg: f64,
@@ -53,6 +104,13 @@ impl Default for Params {
 }
 
 impl Params {
+    fn try_from_toml<P: AsRef<Path>>(path: P) -> Result<Params> {
+        let mut buffer = String::new();
+        std::fs::File::open(path)?.read_to_string(&mut buffer)?;
+        let params = toml::from_str(&buffer)?;
+        Ok(params)
+    }
+
     fn focal_length(&self) -> Length {
         Length::new::<millimeter>(self.focal_length_mm)
     }
@@ -61,11 +119,11 @@ impl Params {
         Length::new::<micron>(self.pixel_size_um)
     }
 
-    fn image_rows(&self) -> u16 {
+    fn image_rows(&self) -> usize {
         self.image_rows
     }
 
-    fn image_cols(&self) -> u16 {
+    fn image_cols(&self) -> usize {
         self.image_cols
     }
 
@@ -90,230 +148,4 @@ impl Params {
             .roll(Angle::new::<degree>(self.roll_deg))
             .build()
     }
-}
-
-pub fn run(
-    params: &Option<PathBuf>,
-    target: &SimulationTarget,
-    output: &PathBuf,
-    format: &Option<SimulationFormat>,
-) -> Result<()> {
-    let params = match params {
-        Some(path) => parse_params(path)?,
-        None => Params::default(),
-    };
-
-    let ray_image = simulate(&params)?;
-
-    match format.or_else(|| {
-        match output
-            .as_path()
-            .extension()
-            .map(|os_str: &OsStr| os_str.to_str())
-        {
-            Some(Some("png")) => Some(SimulationFormat::Png),
-            Some(Some("dat")) => Some(SimulationFormat::Dat),
-            _ => None,
-        }
-    }) {
-        Some(format) => match format {
-            SimulationFormat::Png => write_image(
-                ray_image,
-                params.image_rows(),
-                params.image_cols(),
-                target,
-                output,
-            ),
-            SimulationFormat::Dat => write_dat(
-                ray_image,
-                params.image_rows(),
-                params.image_cols(),
-                target,
-                output,
-            ),
-        },
-        None => anyhow::bail!("unsupported output format"),
-    }
-}
-
-fn simulate(params: &Params) -> Result<RayImage<GlobalFrame>> {
-    let lens = Lens::from_focal_length(params.focal_length()).expect("positive focal length");
-    let image_sensor = ImageSensor::new(
-        params.pixel_size(),
-        params.pixel_size(),
-        params.image_rows(),
-        params.image_cols(),
-    );
-    let coords: Vec<Coordinate<CameraFrd>> = (0..params.image_rows())
-        .flat_map(|row| (0..params.image_cols()).map(move |col| (row, col)))
-        .map(|(row, col)| image_sensor.at_pixel(row, col).unwrap())
-        .collect();
-
-    let sky_model = SkyModel::from_wgs84_and_time(params.wgs84()?, params.time());
-    let cam_orientation = params.orientation();
-
-    let camera = Camera::new(lens, cam_orientation);
-    let rays: Vec<Ray<_>> = coords
-        .par_iter()
-        .filter_map(|coord| {
-            let bearing_cam_enu = camera
-                .trace_from_sensor(*coord)
-                .expect("coord on sensor plane");
-            let aop = sky_model.aop(bearing_cam_enu)?;
-            let dop = sky_model.dop(bearing_cam_enu)?;
-
-            Some(Ray::new(*coord, aop, dop))
-        })
-        .collect();
-
-    Ok(RayImage::from_rays_with_sensor(rays, &image_sensor).expect("no ray hits the same pixel"))
-}
-
-fn parse_params(path: &PathBuf) -> Result<Params> {
-    let mut buffer = String::new();
-    std::fs::File::open(path)?.read_to_string(&mut buffer)?;
-    let params = toml::from_str(&buffer)?;
-
-    Ok(params)
-}
-
-fn write_image(
-    ray_image: RayImage<GlobalFrame>,
-    image_rows: u16,
-    image_cols: u16,
-    target: &SimulationTarget,
-    path: &PathBuf,
-) -> Result<()> {
-    // Map the values in the RayImage to RGB colours.
-    // Draw missing pixels as white.
-    let image: Vec<u8> = match target {
-        SimulationTarget::Aop => ray_image
-            .ray_pixels()
-            .flat_map(|pixel| match pixel {
-                Some(ray) => to_rgb(ray.aop().angle().get::<degree>(), -90.0, 90.0)
-                    .expect("aop in between -90 and 90"),
-                None => [255, 255, 255],
-            })
-            .collect(),
-        SimulationTarget::Dop => ray_image
-            .ray_pixels()
-            .flat_map(|pixel| match pixel {
-                Some(ray) => {
-                    to_rgb(ray.dop().into_inner(), 0.0, 1.0).expect("dop in between 0 and 1")
-                }
-                None => [255, 255, 255],
-            })
-            .collect(),
-    };
-
-    // Save the buffer of RGB pixels as a PNG.
-    image::save_buffer(
-        path,
-        &image,
-        image_cols.into(),
-        image_rows.into(),
-        image::ExtendedColorType::Rgb8,
-    )?;
-
-    Ok(())
-}
-
-fn write_dat(
-    ray_image: RayImage<GlobalFrame>,
-    rows: u16,
-    cols: u16,
-    target: &SimulationTarget,
-    path: &PathBuf,
-) -> Result<()> {
-    let image: Vec<f64> = match target {
-        SimulationTarget::Aop => ray_image
-            .ray_pixels()
-            .map(|pixel| match pixel {
-                Some(ray) => ray.aop().angle().get::<degree>(),
-                None => f64::NAN,
-            })
-            .collect(),
-        SimulationTarget::Dop => ray_image
-            .ray_pixels()
-            .map(|pixel| match pixel {
-                Some(ray) => ray.dop().into_inner(),
-                None => f64::NAN,
-            })
-            .collect(),
-    };
-
-    // Write simulated output to file.
-    let mut output_file = BufWriter::new(File::create(&path)?);
-    for row in 0..rows {
-        for col in 0..cols {
-            let i: usize = (row * cols + col).try_into()?;
-            write!(output_file, "{:5} ", image[i])?;
-        }
-        write!(output_file, "\n")?;
-    }
-
-    Ok(())
-}
-
-// Map an f64 on the interval [x_min, x_max] to an RGB color.
-pub fn to_rgb(x: f64, x_min: f64, x_max: f64) -> Option<[u8; 3]> {
-    if x < x_min || x > x_max {
-        return None;
-    }
-
-    let interval_width = x_max - x_min;
-    let x_norm = ((x - x_min) / interval_width * 255.).floor() as u8;
-
-    let r = vec![
-        255,
-        x_norm
-            .checked_sub(96)
-            .unwrap_or(u8::MIN)
-            .checked_mul(4)
-            .unwrap_or(u8::MAX),
-        255 - x_norm
-            .checked_sub(224)
-            .unwrap_or(u8::MIN)
-            .checked_mul(4)
-            .unwrap_or(u8::MAX),
-    ]
-    .into_iter()
-    .min()
-    .unwrap();
-
-    let g = vec![
-        255,
-        x_norm
-            .checked_sub(32)
-            .unwrap_or(u8::MIN)
-            .checked_mul(4)
-            .unwrap_or(u8::MAX),
-        255 - x_norm
-            .checked_sub(160)
-            .unwrap_or(u8::MIN)
-            .checked_mul(4)
-            .unwrap_or(u8::MAX),
-    ]
-    .into_iter()
-    .min()
-    .unwrap();
-
-    let b = vec![
-        255,
-        x_norm
-            .checked_add(127)
-            .unwrap_or(u8::MIN)
-            .checked_mul(4)
-            .unwrap_or(u8::MAX),
-        255 - x_norm
-            .checked_sub(96)
-            .unwrap_or(u8::MIN)
-            .checked_mul(4)
-            .unwrap_or(u8::MAX),
-    ]
-    .into_iter()
-    .min()
-    .unwrap();
-
-    Some([r, g, b])
 }
