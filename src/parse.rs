@@ -1,8 +1,10 @@
 use crate::cli::Format;
 use crate::cli::Target;
 use anyhow::Result;
+use rumpus::image::IntensityImage;
+use rumpus::image::RayImage;
 use rumpus::optic::PixelCoordinate;
-use rumpus::prelude::*;
+use rumpus::ray::SensorFrame;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -24,7 +26,7 @@ pub fn run(
         .unwrap_or_else(|| crate::common::parse_format(&output))?;
 
     match target {
-        Target::AopSensor | Target::Dop => {
+        Target::AopSensor | Target::Dop | Target::S0 => {
             crate::common::write_ray_image(ray_image, target, format, &output)?;
         }
         Target::AopGlobal => {
@@ -49,8 +51,9 @@ fn ray_image_from_path<P: AsRef<Path>>(path: P) -> Result<RayImage<SensorFrame>>
         IntensityImage::from_bytes(width as usize, height as usize, &image.into_raw())
             .expect("image dimensions are even");
 
-    let rays: Vec<_> = intensity_image.rays().map(|ray| Some(ray)).collect();
-    let ray_image = RayImage::from_rays(rays, intensity_image.height(), intensity_image.width())?;
-
-    Ok(ray_image)
+    Ok(RayImage::from_metapixels(
+        intensity_image.metapixels(),
+        intensity_image.rows(),
+        intensity_image.cols(),
+    )?)
 }

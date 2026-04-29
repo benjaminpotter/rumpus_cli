@@ -49,6 +49,7 @@ pub(crate) fn write_image<F: Copy, P: AsRef<Path>>(
     let bytes = match target {
         Target::AopSensor | Target::AopGlobal => ray_image.aop_bytes(&Jet),
         Target::Dop => ray_image.dop_bytes(&Jet),
+        Target::S0 => todo!(),
     };
 
     image::save_buffer(
@@ -90,6 +91,7 @@ pub(crate) fn write_bin<F: Copy, P: AsRef<Path>>(
     let bytes = match target {
         Target::AopSensor | Target::AopGlobal => ray_image.aop_bytes(&Binary),
         Target::Dop => ray_image.dop_bytes(&Binary),
+        Target::S0 => ray_image.intensity_bytes(&Binary),
     };
 
     fs::write(output, &bytes)?;
@@ -97,7 +99,7 @@ pub(crate) fn write_bin<F: Copy, P: AsRef<Path>>(
     Ok(())
 }
 
-/// Shifts the ray_image ignoring any tilt!
+/// Shifts the ray_image _ignoring any tilt_!
 pub(crate) fn sensor_to_global(
     ray_image: &RayImage<SensorFrame>,
     origin: &PixelCoordinate,
@@ -111,7 +113,7 @@ pub(crate) fn sensor_to_global(
 
             let shift = shift_by(px_coord, origin);
             let angle = ray.aop().into_global_frame(-shift);
-            Some(Ray::<GlobalFrame>::new(angle, ray.dop()))
+            Some(Ray::<GlobalFrame>::new(angle, ray.dop(), ray.intensity()))
         })
         .collect();
 

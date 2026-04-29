@@ -58,6 +58,7 @@ pub enum Target {
     AopSensor,
     AopGlobal,
     Dop,
+    S0,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]

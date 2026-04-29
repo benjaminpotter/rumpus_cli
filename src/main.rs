@@ -1,5 +1,4 @@
 use anyhow::Result;
-use anyhow::bail;
 use clap::Parser;
 use rumpus_cli::cli::Cli;
 use rumpus_cli::cli::Commands;
